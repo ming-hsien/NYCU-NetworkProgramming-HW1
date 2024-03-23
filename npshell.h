@@ -7,47 +7,59 @@
 
 using namespace std;
 
-class CMD {
-    vector< pair<string, string> > commandPairs;
+class CMD
+{
+    vector<pair<string, string>> commandPairs;
     int timestamp;
+    bool PIPE;
+    string command;
 
-    public:
-        CMD();
-        CMD(string);
-        ~CMD();
-        void setTimeStamp(int ts);
-        vector< pair<string, string> > getcommandPairs(void) {
-            return commandPairs;
-        }
-        
+public:
+    CMD();
+    CMD(string);
+    ~CMD();
+    void setTimeStamp(int ts);
+    vector<pair<string, string>> getcommandPairs(void)
+    {
+        return commandPairs;
+    }
 };
 
-CMD::CMD() {
+CMD::CMD()
+{
     timestamp = 0;
+    PIPE = false;
+    command = "";
 }
 
-CMD::~CMD() { commandPairs.clear();}
+CMD::~CMD() { commandPairs.clear(); }
 
-CMD::CMD(string c) {
+CMD::CMD(string c)
+{
+    command = c;
     vector<string> v;
     stringstream ss;
     string s1, s2;
     ss.clear();
     ss << c;
 
-    while (true) {
+    while (true)
+    {
         ss >> s1;
-        if (ss.fail()) break;
+        if (ss.fail())
+            break;
         ss >> s2;
-        if (ss.fail()) {
-            commandPairs.push_back(make_pair(s1,""));
+        if (ss.fail())
+        {
+            commandPairs.push_back(make_pair(s1, ""));
             break;
         }
         commandPairs.push_back(make_pair(s1, s2));
     }
 }
 
-void CMD::setTimeStamp(int ts) {
+void CMD::setTimeStamp(int ts)
+{
     timestamp = ts;
 }
 
