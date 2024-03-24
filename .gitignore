@@ -2,3 +2,4 @@ commands/*
 .DS_Store
 .vscode
 npshell
+*.txt

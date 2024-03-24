@@ -51,7 +51,7 @@ bool isPipeCmd(string Cmd) {
 }
 
 bool isNumPipeCmd(string Cmd) {
-    if (Cmd.find('|') != string::npos && isdigit(Cmd[Cmd.length() - 1]))
+    if ((Cmd.find('|') != string::npos || Cmd.find('!') != string::npos) && isdigit(Cmd[Cmd.length() - 1]))
         return true;
     return false;
 }
@@ -168,7 +168,7 @@ int getPipeTimes(string cmdLine) {
     int PipeTimes = 0;
     int CutPoint = 0;
     for (int i = 0; i < cmdLine.length(); i++) {
-        if (cmdLine[i] == '|') {
+        if (cmdLine[i] == '|' || cmdLine[i] == '!') {
             if (i + 1 < cmdLine.length() && isdigit(cmdLine[i + 1])) {
                 int l = i + 1;
                 while (l < cmdLine.length() && isdigit(cmdLine[l])) {
@@ -198,8 +198,12 @@ CMDtype pareseOneCmd(string Cmd) {
         v.pop_back();
     }
     CmdPack.CmdStr += CmdPack.BIN;
-    if (CmdPack.Is_FileReDirection)
+    if (CmdPack.Is_FileReDirection) {
         CmdPack.writePath = v[v.size() - 1];
+        v.pop_back();
+        v.pop_back();
+        CmdPack.param = v;
+    }
     else 
         CmdPack.param = v;
 
@@ -224,6 +228,8 @@ void childProcess(CMDtype OneCmdPack, int CmdNumber, int numberOfGeneralCmds, in
     // set exec stdOUT
     if (OneCmdPack.Is_NumPipeCmd) {
         dup2(PIPEMAP[timestamp + OneCmdPack.PipeN].PipeFdNumber[1], STDOUT_FILENO);
+        if (OneCmdPack.Is_StdError) 
+            dup2(PIPEMAP[timestamp + OneCmdPack.PipeN].PipeFdNumber[1], STDERR_FILENO);
     }
     else if (OneCmdPack.Is_FileReDirection) {
         fd = open(OneCmdPack.writePath.c_str(), O_WRONLY | O_TRUNC | O_CREAT, 0777);
@@ -253,15 +259,13 @@ void childProcess(CMDtype OneCmdPack, int CmdNumber, int numberOfGeneralCmds, in
     char **argv = stringToCharPointer(bufVec);
     int e = execvp(argv[0], argv);
 
-    if(e == -1) {
+    if(e == -1)
         cerr << "Unknown command: [" << OneCmdPack.BIN << "].\n";
-        exit(1);
-    }
     exit(0);
 }
 
 void parentProcess(CMDtype OneCmdPack, int CmdNumber, int CmdPipeList[], int pipeTimes) {
-    while(waitpid(-1, &status, WNOHANG) > 0);
+    // while(waitpid(-1, &status, WNOHANG) > 0);
     if (CmdNumber > 0) {
         close(CmdPipeList[(CmdNumber - 1) * 2]);
         close(CmdPipeList[(CmdNumber - 1) * 2 + 1]);
@@ -295,7 +299,6 @@ void CmdProcess(vector<string> cmdSplit) {
         int PipeIn = -1;
         if (PIPEMAP.find(timestamp) != PIPEMAP.end()) {
             PipeIn = PIPEMAP[timestamp].PipeFdNumber[0];
-            cout << PipeIn << endl;
         }
         
         for (int y = 0; y < numberOfGeneralCmds; ++y) {
@@ -311,7 +314,6 @@ void CmdProcess(vector<string> cmdSplit) {
                 if (PIPEMAP.find(timestamp + pipeTimes) == PIPEMAP.end())
                     pipe(PIPEMAP[timestamp + pipeTimes].PipeFdNumber);
             }
-
             // else if pre is the PipeCmd, Make a pipe
             else if (y != numberOfGeneralCmds - 1) {
                 pipe(CmdPipeList + y * 2);
@@ -369,6 +371,7 @@ void runNpShell() {
         }
         else {
             CmdProcess(cmdSplit);
+            timestamp--;
         }
         timestamp++;
     }
