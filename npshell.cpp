@@ -7,6 +7,7 @@
 
 #include <stdio.h>
 #include <sys/wait.h>
+#include <condition_variable>
 #include <unistd.h>
 
 // this is for open file for file descriptor
@@ -19,6 +20,10 @@ using namespace std;
 
 int timestamp;
 int status;
+
+mutex mtx;
+condition_variable cv;
+bool ready = false;
 
 struct PipeFd {
     vector<pid_t> PipeFromPids;
@@ -212,6 +217,7 @@ CMDtype pareseOneCmd(string Cmd) {
 }
 
 void childProcess(CMDtype OneCmdPack, int CmdNumber, int numberOfGeneralCmds, int PipeIn, int CmdPipeList[]) {
+    unique_lock<mutex> lck(mtx);
     int fd;
 
     // set exec stdIN
@@ -261,11 +267,14 @@ void childProcess(CMDtype OneCmdPack, int CmdNumber, int numberOfGeneralCmds, in
 
     if(e == -1)
         cerr << "Unknown command: [" << OneCmdPack.BIN << "].\n";
+    ready = true;
+    cv.notify_all();
     exit(0);
 }
 
 void parentProcess(CMDtype OneCmdPack, int CmdNumber, int CmdPipeList[], int pipeTimes) {
-    // while(waitpid(-1, &status, WNOHANG) > 0);
+    while(waitpid(-1, &status, WNOHANG) > 0);
+
     if (CmdNumber > 0) {
         close(CmdPipeList[(CmdNumber - 1) * 2]);
         close(CmdPipeList[(CmdNumber - 1) * 2 + 1]);
@@ -329,8 +338,8 @@ void CmdProcess(vector<string> cmdSplit) {
                 parentProcess(OneCmdPack, y, CmdPipeList, pipeTimes);
                 if (OneCmdPack.Is_NumPipeCmd) 
                     PIPEMAP[timestamp + pipeTimes].PipeFromPids.push_back(pid);
-                else
-                    waitpid(pid, NULL, 0);
+                waitpid(-1, &status, WNOHANG);
+                sleep(1.5);
             }
             // create child process failed.
             else {
