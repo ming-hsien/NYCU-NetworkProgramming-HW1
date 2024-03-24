@@ -21,7 +21,7 @@ int timestamp;
 int status;
 
 struct PipeFd {
-    pid_t PipeFromPid;
+    vector<pid_t> PipeFromPids;
     int PipeFdNumber[2] = {-1, -1};
 };
 
@@ -32,6 +32,7 @@ struct CMDtype {
     bool Is_StdError = false;
     bool Is_PipeCmd = false;
     bool Is_FileReDirection = false;
+    string writePath = "";
     bool Is_NumPipeCmd = false;
     string CmdStr = "";
 };
@@ -78,13 +79,8 @@ vector<string> splitEachCmd2GeneralOrNonOrNumPipeCmds(string eachCmd) {
         ss >> s1;
         if (ss.fail())
             break;
-        if (s1 == ">" || s1 == ">>") {
-            if (buffer != "")
-                PerNonNumPipeCmd.push_back(buffer);
-            buffer = s1;
-        }
-        else
-            buffer = buffer + " " + s1;
+
+        buffer = buffer + " " + s1;
 
         if (s1.find("|") != string::npos || s1.find("!") != string::npos) {
             PerNonNumPipeCmd.push_back(buffer);
@@ -200,46 +196,55 @@ CMDtype pareseOneCmd(string Cmd) {
     if (v.size() > 0 && CmdPack.Is_PipeCmd) {
         CmdPack.PipeN = getPipeTimes(Cmd);
         v.pop_back();
-        CmdPack.param = v;
     }
-    CmdPack.CmdStr += v[0];
+    CmdPack.CmdStr += CmdPack.BIN;
+    if (CmdPack.Is_FileReDirection)
+        CmdPack.writePath = v[v.size() - 1];
+    else 
+        CmdPack.param = v;
+
     for (const auto &c : CmdPack.param) CmdPack.CmdStr = CmdPack.CmdStr + " " + c;
     return CmdPack;
 }
 
 void childProcess(CMDtype OneCmdPack, int CmdNumber, int numberOfGeneralCmds, int PipeIn, int CmdPipeList[]) {
-    // cout << OneCmdPack.BIN << endl;
-    // cout << OneCmdPack.CmdStr << endl;
-    // If current is pipe command
-    if (OneCmdPack.Is_PipeCmd) {
-        if (CmdNumber != 0)
-            dup2(CmdPipeList[(CmdNumber - 1) * 2], STDIN_FILENO);
-        // if current process is the firsrt pipe process, and it have stdIn
-        else if (PipeIn != -1)
+    int fd;
+
+    // set exec stdIN
+    if (CmdNumber != 0) {
+        dup2(CmdPipeList[(CmdNumber - 1) * 2], STDIN_FILENO);
+    }
+    else {
+        if (PipeIn == -1)
+            dup2(STDIN_FILENO, STDIN_FILENO);
+        else
             dup2(PipeIn, STDIN_FILENO);
-        dup2(CmdPipeList[CmdNumber * 2 + 1], STDOUT_FILENO);
     }
 
-    // (TODO) If current is number pipe command
-    // else if (OneCmdPack.Is_NumPipeCmd) {
-
-    // }
-
-    // Else if current is file redirect command, open file and set the stdout to this file.
+    // set exec stdOUT
+    if (OneCmdPack.Is_NumPipeCmd) {
+        dup2(PIPEMAP[timestamp + OneCmdPack.PipeN].PipeFdNumber[1], STDOUT_FILENO);
+    }
     else if (OneCmdPack.Is_FileReDirection) {
-        dup2(CmdPipeList[(CmdNumber - 1) * 2], STDIN_FILENO);
-        int fd = open(OneCmdPack.param[0].c_str(), O_WRONLY | O_TRUNC | O_CREAT);
+        fd = open(OneCmdPack.writePath.c_str(), O_WRONLY | O_TRUNC | O_CREAT, 0777);
         dup2(fd, STDOUT_FILENO);
     }
-    // Else, General Command
-    // else {
-    //     dup2(STDOUT_FILENO, STDOUT_FILENO);
-    //     dup2(STDIN_FILENO, STDIN_FILENO);
-    // }
+    else if (CmdNumber < numberOfGeneralCmds - 1) {
+        dup2(CmdPipeList[CmdNumber * 2 + 1], STDOUT_FILENO);
+    }
+    else {
+        dup2(STDOUT_FILENO, STDOUT_FILENO);
+    }
 
     // Close the Command Pipe List
     for (int i = 0; i < (numberOfGeneralCmds - 1) * 2; i++) {
         close(CmdPipeList[i]);
+    }
+
+    // Close Number Pipe
+    for (auto numberpipe : PIPEMAP) {
+        close(numberpipe.second.PipeFdNumber[0]);
+        close(numberpipe.second.PipeFdNumber[1]);
     }
 
     // Execute the Command
@@ -247,6 +252,7 @@ void childProcess(CMDtype OneCmdPack, int CmdNumber, int numberOfGeneralCmds, in
     bufVec.insert(bufVec.begin(), OneCmdPack.BIN);
     char **argv = stringToCharPointer(bufVec);
     int e = execvp(argv[0], argv);
+
     if(e == -1) {
         cerr << "Unknown command: [" << OneCmdPack.BIN << "].\n";
         exit(1);
@@ -254,15 +260,21 @@ void childProcess(CMDtype OneCmdPack, int CmdNumber, int numberOfGeneralCmds, in
     exit(0);
 }
 
-void parentProcess(int CmdNumber, int CmdPipeList[]) {
+void parentProcess(CMDtype OneCmdPack, int CmdNumber, int CmdPipeList[], int pipeTimes) {
+    while(waitpid(-1, &status, WNOHANG) > 0);
     if (CmdNumber > 0) {
         close(CmdPipeList[(CmdNumber - 1) * 2]);
         close(CmdPipeList[(CmdNumber - 1) * 2 + 1]);
     }
-    // (TODO) close and wait numbered pipe
-    // if(numberedPipes.find(counter) != numberedPipes.end()){
-    //     
-    // }
+    
+    // close and wait numbered pipe
+    if (PIPEMAP.find(timestamp) != PIPEMAP.end()) {
+        close(PIPEMAP[timestamp].PipeFdNumber[0]);
+        close(PIPEMAP[timestamp].PipeFdNumber[1]);
+        for (pid_t pid : PIPEMAP[timestamp].PipeFromPids)
+            waitpid(pid, NULL, 0);
+        PIPEMAP.erase(timestamp);
+    }
 }
 
 void CmdProcess(vector<string> cmdSplit) {
@@ -283,30 +295,27 @@ void CmdProcess(vector<string> cmdSplit) {
         int PipeIn = -1;
         if (PIPEMAP.find(timestamp) != PIPEMAP.end()) {
             PipeIn = PIPEMAP[timestamp].PipeFdNumber[0];
+            cout << PipeIn << endl;
         }
-
+        
         for (int y = 0; y < numberOfGeneralCmds; ++y) {
             pipeTimes = 0;
+
             string OneCmd = GeneralOrNonOrNumPipeCmds[y];
             CMDtype OneCmdPack = pareseOneCmd(OneCmd);
 
             // Build Pipe
-            // (TODO) If current is the NumPipeCmd
-            // if (OneCmdPack.Is_NumPipeCmd && OneCmdPack.PipeN > 0)
-            // {
-            // PipeFd newPipe;
-            // pipeTimes = getPipeTimes(OneCmd);
-            // if (pipe(newPipe.PipeFdNumber) < 0)
-            // cerr << "pipe create error" << endl;
-            // }
-
-            // Else If current is the PipeCmd, Make a pipe
-            /*else */ if (OneCmdPack.Is_PipeCmd)
-            {
-                pipe(CmdPipeList + y * 2);
+            // If current is the NumPipeCmd
+            if (OneCmdPack.Is_NumPipeCmd) {
+                pipeTimes = OneCmdPack.PipeN;
+                if (PIPEMAP.find(timestamp + pipeTimes) == PIPEMAP.end())
+                    pipe(PIPEMAP[timestamp + pipeTimes].PipeFdNumber);
             }
 
-            // while (waitpid(-1, &status, WNOHANG) > 0); ==========
+            // else if pre is the PipeCmd, Make a pipe
+            else if (y != numberOfGeneralCmds - 1) {
+                pipe(CmdPipeList + y * 2);
+            }
 
             pid = fork();
             // child exec Cmd here.
@@ -315,9 +324,11 @@ void CmdProcess(vector<string> cmdSplit) {
             }
             // parent wait for child done.
             else if (pid > 0) {
-                // wait for any subprocess Done.
-                while (waitpid(-1, &status, WNOHANG) > 0);
-                parentProcess(y, CmdPipeList);
+                parentProcess(OneCmdPack, y, CmdPipeList, pipeTimes);
+                if (OneCmdPack.Is_NumPipeCmd) 
+                    PIPEMAP[timestamp + pipeTimes].PipeFromPids.push_back(pid);
+                else
+                    waitpid(pid, NULL, 0);
             }
             // create child process failed.
             else {
@@ -327,6 +338,7 @@ void CmdProcess(vector<string> cmdSplit) {
         }
         timestamp++;
     }
+    return;
 }
 
 void runNpShell() {
