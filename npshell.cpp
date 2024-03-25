@@ -110,16 +110,25 @@ vector<string> splitLine2EachCmd(vector<string> cmd)
     string prevStr = "";
     vector<string> cmdVec;
     for (int i = 0; i < cmd.size(); i++) {
-        if ((cmd[i] == "number" || cmd[i] == "removetag" ||
-             cmd[i] == "removetag0" || cmd[i] == "ls" || cmd[i] == "cat") &&
-            (prevStr != "|") && (prevStr != "!")) {
-            if (buffer != "")
-                cmdVec.push_back(buffer);
-            buffer = cmd[i];
+        // if ((cmd[i] == "number" || cmd[i] == "removetag" ||
+        //      cmd[i] == "removetag0" || cmd[i] == "ls" || cmd[i] == "cat") &&
+        //     (prevStr != "|") && (prevStr != "!")) {
+        //     if (buffer != "")
+        //         cmdVec.push_back(buffer);
+        //     buffer = cmd[i];
+        // }
+        // else
+        //     buffer = buffer + " " + cmd[i];
+        // prevStr = cmd[i];
+
+        if (isNumPipeCmd(cmd[i])) {
+            cmdVec.push_back(buffer + " " + cmd[i]);
+            buffer = "";
         }
-        else
-            buffer = buffer + " " + cmd[i];
-        prevStr = cmd[i];
+        else {
+            buffer == "" ? buffer = cmd[i] : buffer = buffer + " " + cmd[i];
+        }
+            
     }
     if (buffer != "")
         cmdVec.push_back(buffer);
@@ -333,6 +342,7 @@ void CmdProcess(vector<string> cmdSplit) {
                     usleep(1000*500);
                 }
                 else {
+                    // cout << "parent: " << OneCmdPack.CmdStr << endl;
                     if (y == numberOfGeneralCmds - 1)
                         waitpid(pid, NULL, 0);
                 }
