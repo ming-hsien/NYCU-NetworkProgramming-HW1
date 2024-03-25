@@ -328,10 +328,14 @@ void CmdProcess(vector<string> cmdSplit) {
             // parent wait for child done.
             else if (pid > 0) {
                 parentProcess(OneCmdPack, y, CmdPipeList, pipeTimes);
-                if (OneCmdPack.Is_NumPipeCmd) 
+                if (OneCmdPack.Is_NumPipeCmd) {
                     PIPEMAP[timestamp + pipeTimes].PipeFromPids.push_back(pid);
-                waitpid(-1, &status, WNOHANG);
-                sleep(1.5);
+                    usleep(1000*500);
+                }
+                else {
+                    if (y == numberOfGeneralCmds - 1)
+                        waitpid(pid, NULL, 0);
+                }
             }
             // create child process failed.
             else {
@@ -360,7 +364,8 @@ void runNpShell() {
         if (BIN == "printenv") {
             if (PATH == "")
                 continue;
-            cout << getenv(PATH.c_str()) << endl;
+            if (getenv(PATH.c_str()) != NULL)
+                cout << getenv(PATH.c_str()) << endl;
         }
         else if (BIN == "exit") {
             exit(0);
@@ -379,7 +384,7 @@ void runNpShell() {
 }
 
 void init() {
-    setenv("PATH", "bin/:.", 1);
+    setenv("PATH", "bin:.", 1);
     timestamp = 0;
 }
 
