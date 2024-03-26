@@ -274,6 +274,7 @@ void childProcess(CMDtype OneCmdPack, int CmdNumber, int numberOfGeneralCmds, in
 }
 
 void parentProcess(CMDtype OneCmdPack, int CmdNumber, int CmdPipeList[], int pipeTimes) {
+    waitpid(-1, &status, WNOHANG);
     if (CmdNumber > 0) {
         close(CmdPipeList[(CmdNumber - 1) * 2]);
         close(CmdPipeList[(CmdNumber - 1) * 2 + 1]);
