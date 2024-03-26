@@ -274,8 +274,6 @@ void childProcess(CMDtype OneCmdPack, int CmdNumber, int numberOfGeneralCmds, in
 }
 
 void parentProcess(CMDtype OneCmdPack, int CmdNumber, int CmdPipeList[], int pipeTimes) {
-    while(waitpid(-1, &status, WNOHANG) > 0);
-
     if (CmdNumber > 0) {
         close(CmdPipeList[(CmdNumber - 1) * 2]);
         close(CmdPipeList[(CmdNumber - 1) * 2 + 1]);
@@ -283,10 +281,10 @@ void parentProcess(CMDtype OneCmdPack, int CmdNumber, int CmdPipeList[], int pip
     
     // close and wait numbered pipe
     if (PIPEMAP.find(timestamp) != PIPEMAP.end()) {
+        // for (pid_t pid : PIPEMAP[timestamp].PipeFromPids)
+        //     waitpid(pid, NULL, 0);
         close(PIPEMAP[timestamp].PipeFdNumber[0]);
         close(PIPEMAP[timestamp].PipeFdNumber[1]);
-        for (pid_t pid : PIPEMAP[timestamp].PipeFromPids)
-            waitpid(pid, NULL, 0);
         PIPEMAP.erase(timestamp);
     }
 }
@@ -337,11 +335,11 @@ void CmdProcess(vector<string> cmdSplit) {
             // parent wait for child done.
             else if (pid > 0) {
                 parentProcess(OneCmdPack, y, CmdPipeList, pipeTimes);
-                if (OneCmdPack.Is_NumPipeCmd) {
-                    PIPEMAP[timestamp + pipeTimes].PipeFromPids.push_back(pid);
-                    usleep(1000*500);
-                }
-                else {
+                // if (OneCmdPack.Is_NumPipeCmd) {
+                //     PIPEMAP[timestamp + pipeTimes].PipeFromPids.push_back(pid);
+                //     usleep(1000*500);
+                // }
+                if (!OneCmdPack.Is_NumPipeCmd) {
                     // cout << "parent: " << OneCmdPack.CmdStr << endl;
                     if (y == numberOfGeneralCmds - 1)
                         waitpid(pid, NULL, 0);
