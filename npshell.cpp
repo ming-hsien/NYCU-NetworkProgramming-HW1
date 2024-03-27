@@ -325,15 +325,17 @@ void CmdProcess(vector<string> cmdSplit) {
             // parent wait for child done.
             else if (pid > 0) {
                 parentProcess(OneCmdPack, y, CmdPipeList, pipeTimes);
-                // if (OneCmdPack.Is_NumPipeCmd) {
-                //     PIPEMAP[timestamp + pipeTimes].PipeFromPids.push_back(pid);
-                //     usleep(1000*500);
-                // }
+                if (OneCmdPack.Is_NumPipeCmd) {
+                    PIPEMAP[timestamp + pipeTimes].PipeFromPids.push_back(pid);
+                    usleep(1000*500);
+                }
                 if (!OneCmdPack.Is_NumPipeCmd) {
                     // cout << "parent: " << OneCmdPack.CmdStr << endl;
                     if (y == numberOfGeneralCmds - 1)
                         waitpid(pid, NULL, 0);
                 }
+                usleep(1000*20);
+
             }
             // create child process failed.
             else {
