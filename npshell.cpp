@@ -4,6 +4,8 @@
 #include <map>
 #include <vector>
 #include <queue>
+#include <fstream>
+#include <pwd.h>
 
 #include <stdio.h>
 #include <sys/wait.h>
@@ -344,6 +346,9 @@ void CmdProcess(vector<string> cmdSplit) {
         timestamp++;
     }
     return;
+}
+string home_dir() {
+    return getpwuid(getuid()) -> pw_dir;
 }
 
 void runNpShell() {
